@@ -23,6 +23,10 @@
                 include 'Accounts.php';
                 echo delete_account($conn, $_POST["Phone"], $_POST["Password"]);
                 break;
+            case 'UpdateProfile':
+                include 'Accounts.php';
+                echo update_profile($conn, $database_name, $_POST["Phone"], $_POST["Username"], $_POST["NewUsername"]);
+                break;
             default:
                 die('{"Result": "ERROR"}');
         }
@@ -33,6 +37,10 @@
             case 'Login':
                 include 'Accounts.php';
                 echo login($conn, $database_name, $_POST["Phone"], $_POST["Password"], $_POST["OneSignalID"]);
+                break;
+            case 'UpdateProfile':
+                include 'Accounts.php';
+                echo update_profile($conn, $database_name, $_POST["Phone"], $_POST["Username"], $_POST["NewUsername"]);
                 break;
             default:
                 die('{"Result": "ERROR"}');

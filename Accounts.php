@@ -112,6 +112,47 @@
     }
 
     /**
+     * Updates the user's profile information in the database.
+     * currently there is only one column in the database columns to update:
+     * Username: a varchar(20) column.
+     * in the future, there may be more columns to update.
+     *
+     * @param DatabaseName The database in which the profile is stored, either 'Customers' or 'Teachers'
+     * @param Phone The user's phone number
+     * @param Password The user's password
+     * @param NewUsername The new username to update
+     *
+     * @return JSON Object with the result of the operation
+     * @return Result=SUCCESS in case of success
+     * @return Result=WRONG_PASSWORD in case the password is incorrect
+     * @return Result=PHONE_DOESNT_EXIST in case the phone number is not in the database
+     * @return Result=ERROR in case of failure
+     */
+    function update_profile($conn, $database_name, $phone, $password, $new_username) {
+        // Check if the phone number is 12 characters long, if not, end the script
+        if (strlen($phone) != 12) die('{"Result": "ERROR"}');
+        // Check if the username is between 1 and 20 characters long, if not, end the script
+        if (strlen($new_username) < 1 || strlen($new_username) > 20) die('{"Result": "ERROR"}');
+
+        // Check if the password is correct
+        $sql = "SELECT Password FROM ".$database_name." WHERE Phone = '".$phone."'";
+        $result = mysqli_query($conn ,$sql);
+        if(mysqli_num_rows($result) > 0) {
+            while($row = mysqli_fetch_assoc($result)) {
+                if (!password_verify($password, $row['Password'])) die('{"Result": "WRONG_PASSWORD"}');
+            }
+        } else {
+            die('{"Result": "PHONE_DOESNT_EXIST"}');
+        }
+
+        // Update the user's profile in the database
+        $sql = "UPDATE ".$database_name." SET Username='".$new_username."' WHERE Phone='".$phone."'";
+        if (!mysqli_query($conn ,$sql)) die('{"Result": "ERROR"}');
+
+        return '{"Result": "SUCCESS"}';
+    }
+
+    /**
      * Deletes the user's account from the database.
      *
      * @param Phone The user's phone number

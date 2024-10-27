@@ -27,6 +27,14 @@
                 include 'Accounts.php';
                 echo update_profile($conn, $database_name, $_POST["Phone"], $_POST["Username"], $_POST["NewUsername"]);
                 break;
+            case 'OrderLesson':
+                include 'Booking.php';
+                echo order_lesson($conn, $_POST["Phone"], $_POST["Password"], $_POST["StartTimestamp"], $_POST["DurationMinutes"]);
+                break;
+            case 'CancelLesson':
+                include 'Booking.php';
+                echo cancel_lesson($conn, $_POST["Phone"], $_POST["Password"], $_POST["StartTimestamp"]);
+                break;
             default:
                 die('{"Result": "ERROR"}');
         }

@@ -281,6 +281,27 @@
         $sql = "UPDATE Teachers SET CurrentAppointments='".json_encode(array_values($teacher_current_appointments))."' WHERE Phone='".$phone."'";
         if (!mysqli_query($conn ,$sql)) die('{"Result": "ERROR"}');
 
+        // Update the lesson in the user's CurrentAppointments
+        $sql = "SELECT CurrentAppointments FROM Customers WHERE ID = '".$student_id."'";
+        $result = mysqli_query($conn ,$sql);
+        if(mysqli_num_rows($result) > 0) {
+            while($row = mysqli_fetch_assoc($result)) {
+                $current_appointments = json_decode($row['CurrentAppointments'], true);
+
+                foreach ($current_appointments as $key => $appointment) {
+                    if ($appointment['StartTimestamp'] == $start_timestamp) {
+                        $current_appointments[$key] = $details;
+                        break;
+                    }
+                }
+
+                $sql = "UPDATE Customers SET CurrentAppointments='".json_encode($current_appointments)."' WHERE ID='".$student_id."'";
+                if (!mysqli_query($conn ,$sql)) die('{"Result": "ERROR"}');
+            }
+        } else {
+            die('{"Result": "ERROR"}');
+        }
+
         // Add the lesson back to the PendingLessons table
         $sql = "INSERT INTO PendingLessons (StudentID, Details) VALUES ('".$student_id."', '".json_encode($details)."')";
         if (!mysqli_query($conn, $sql)) die('{"Result": "ERROR"}');

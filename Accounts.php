@@ -1,5 +1,5 @@
 <?php
-    require_once $_SERVER['DOCUMENT_ROOT'] . '/utilities.php';
+    require_once $_SERVER['DOCUMENT_ROOT'] . '/supreme-octo-eureka-backend/utilities.php';
 
 
     /**
@@ -40,7 +40,6 @@
     /**
      * Logs the user in and updates the OneSignalID in the database.
      *
-     * @param DatabaseName The database in which the phone number is stored, either 'Customers' or 'Teachers'
      * @param Phone The user's phone number
      * @param Password The user's password
      * @param OneSignalID The user's OneSignal ID
@@ -52,15 +51,26 @@
      * @return Result=WRONG_PASSWORD in case the password is incorrect
      * @return Result=ERROR in case of failure
      */
-    function login($conn, $database_name, $phone, $password, $onesignal_id)
+    function login($conn, $phone, $password, $onesignal_id)
+    {
+        // Check if the phone number is 12 characters long, if not, end the script
+        if (strlen($phone) != 12) die('{"Result": "ERROR: Phone number is not 10 characters long"}');
+
+        // Check if the phone number is in the Teachers database
+        $output = _login($conn, 'Teachers', $phone, $password, $onesignal_id);
+        if ($output != '{"Result": "PHONE_DOESNT_EXIST"}') return $output;
+
+        // Check if the phone number is in the Customers database
+        $output = _login($conn, 'Customers', $phone, $password, $onesignal_id);
+        if ($output != '{"Result": "PHONE_DOESNT_EXIST"}') return $output;
+
+        return '{"Result": "PHONE_DOESNT_EXIST"}';
+    }
+
+    function _login($conn, $database_name, $phone, $password, $onesignal_id)
     {
         $needs_rehash = false;
         $output = array('Result' => 'None');
-
-        // Check if the database name is either 'Customers' or 'Teachers', if not, end the script
-        if ($database_name != 'Customers' && $database_name != 'Teachers') die('{"Result": "ERROR"}');
-        // Check if the phone number is 12 characters long, if not, end the script
-        if (strlen($phone) != 12) die('{"Result": "ERROR"}');
 
         // Prepare the SQL query based on the DatabaseName parameter
         if ($database_name == 'Customers') {
@@ -73,7 +83,7 @@
         $result = mysqli_query($conn ,$sql);
         if(mysqli_num_rows($result) > 0) {
             while($row = mysqli_fetch_assoc($result)) {
-                if (!password_verify($password, $row['Password'])) die('{"Result": "WRONG_PASSWORD"}');
+                if (!password_verify($password, $row['Password'])) return('{"Result": "WRONG_PASSWORD"}');
 
                 // Check if the password needs to be rehashed with a stronger algorithm
                 if (password_needs_rehash($row['Password'], PASSWORD_DEFAULT)) $needs_rehash = true;
@@ -97,7 +107,7 @@
                 }
             }
         } else {
-            die('{"Result": "PHONE_DOESNT_EXIST"}');
+            return('{"Result": "PHONE_DOESNT_EXIST"}');
         }
 
         // Update the OneSignalID in the database, and rehash the password if needed
@@ -106,7 +116,7 @@
         } else {
             $sql = "UPDATE ".$database_name." SET OneSignalID='".$onesignal_id."' WHERE Phone='".$phone."'";
         }
-        if (!mysqli_query($conn ,$sql)) die('{"Result": "ERROR"}');
+        if (!mysqli_query($conn ,$sql)) return('{"Result": "ERROR: Could not update OneSignalID"}');
 
         return json_encode($output);
     }

@@ -3,6 +3,52 @@
 
 
     /**
+     * Get all the pending lessons from the pending lessons table.
+     *
+     * @param Phone The teacher's phone number
+     * @param Password The teacher's password
+     *
+     * @return JSON Object with the pending lessons
+     * @return Result=SUCCESS in case of success
+     * @return Result=PHONE_DOESNT_EXIST in case the phone number is not in the database
+     * @return Result=WRONG_PASSWORD in case the password is incorrect
+     * @return Result=ERROR in case of failure
+     */
+    function get_pending_lessons($conn, $phone, $password)
+    {
+        $output = array('Result' => 'None');
+
+        // Check if the phone number is 12 characters long, if not, end the script
+        if (strlen($phone) != 12) die('{"Result": "ERROR: Phone number is not 12 characters long"}');
+
+        // Check if the password is correct
+        $sql = "SELECT Password FROM Teachers WHERE Phone = '".$phone."'";
+        $result = mysqli_query($conn ,$sql);
+        if(mysqli_num_rows($result) > 0) {
+            while($row = mysqli_fetch_assoc($result)) {
+                if (!password_verify($password, $row['Password'])) {
+                    die('{"Result": "WRONG_PASSWORD"}');
+                }
+            }
+        } else {
+            die('{"Result": "PHONE_DOESNT_EXIST"}');
+        }
+
+        // Get all the pending lessons from the PendingLessons table
+        $sql = "SELECT Details FROM PendingLessons";
+        $result = mysqli_query($conn ,$sql);
+        if ($result) {
+            $pending_lessons = array();
+            while ($row = mysqli_fetch_assoc($result)) {
+                array_push($pending_lessons, json_decode($row['Details'], true));
+            }
+            return json_encode(array('Result' => 'SUCCESS', 'PendingLessons' => json_encode($pending_lessons)));
+        } else {
+            die('{"Result": "ERROR: '.mysqli_error($conn).'"}');
+        }
+    }
+
+    /**
      * Order a lesson at the given time.
      *
      * @param Phone The user's phone number
@@ -217,7 +263,7 @@
         if (!mysqli_query($conn ,$sql)) die('{"Result": "ERROR: '.mysqli_error($conn).'"}');
 
         $details['IsPending'] = false;
-        $details['TeacherID'] = $id;
+        $details['TeacherID'] = intval($id);
         $details['TeacherName'] = $name;
         $details['TeacherPhone'] = $phone;
         $details['Link'] = $link;
@@ -237,6 +283,81 @@
                 foreach ($current_appointments as $key => $appointment) {
                     if ($appointment['StartTimestamp'] == $start_timestamp) {
                         $current_appointments[$key] = $details;
+                        break;
+                    }
+                }
+
+                $sql = "UPDATE Customers SET CurrentAppointments='".json_encode($current_appointments)."' WHERE ID='".$student_id."'";
+                if (!mysqli_query($conn ,$sql)) die('{"Result": "ERROR: '.mysqli_error($conn).'"}');
+            }
+        } else {
+            die('{"Result": "ERROR: '.mysqli_error($conn).'"}');
+        }
+
+        $output = array('Result' => 'SUCCESS');
+        return json_encode($output);
+    }
+
+    /**
+     * Edit an accepted lesson link.
+     *
+     * @param Phone The teachers's phone number
+     * @param Password The teacher's password
+     * @param StudentID The student's ID
+     * @param StartTimestamp The start timestamp of the lesson
+     * @param NewLink The new link to the lesson
+     *
+     * @return JSON Object with the result of the operation
+     * @return Result=SUCCESS in case of success
+     * @return Result=LESSON_DOESNT_EXIST in case the lesson is not in the database
+     * @return Result=PHONE_DOESNT_EXIST in case the phone number is not in the database
+     * @return Result=WRONG_PASSWORD in case the password is incorrect
+     * @return Result=ERROR in case of failure
+     */
+    function edit_lesson_link($conn, $phone, $password, $student_id, $start_timestamp, $new_link)
+    {
+        $output = array('Result' => 'None');
+
+        // Check if the phone number is 12 characters long, if not, end the script
+        if (strlen($phone) != 12) die('{"Result": "ERROR: Phone number is not 12 characters long"}');
+
+        // Check if the password is correct, and get the CurrentAppointments
+        $sql = "SELECT Password, CurrentAppointments FROM Teachers WHERE Phone = '".$phone."'";
+        $result = mysqli_query($conn ,$sql);
+        if(mysqli_num_rows($result) > 0) {
+            while($row = mysqli_fetch_assoc($result)) {
+                if (!password_verify($password, $row['Password'])) die('{"Result": "WRONG_PASSWORD"}');
+
+                $teacher_current_appointments = json_decode($row['CurrentAppointments'], true);
+            }
+        } else {
+            die('{"Result": "PHONE_DOESNT_EXIST"}');
+        }
+
+        // Find the lesson to edit in the teacher's CurrentAppointments
+        $found = false;
+        foreach ($teacher_current_appointments as $key => $appointment) {
+            if ($appointment['StudentID'] == $student_id && $appointment['StartTimestamp'] == $start_timestamp) {
+                $found = true;
+                $teacher_current_appointments[$key]['Link'] = $new_link;
+            }
+        }
+        if (!$found) die('{"Result": "LESSON_DOESNT_EXIST"}');
+
+        // Update the lesson in the teacher's CurrentAppointments
+        $sql = "UPDATE Teachers SET CurrentAppointments='".json_encode(array_values($teacher_current_appointments))."' WHERE Phone='".$phone."'";
+        if (!mysqli_query($conn ,$sql)) die('{"Result": "ERROR: '.mysqli_error($conn).'"}');
+
+        // Update the lesson in the user's CurrentAppointments
+        $sql = "SELECT CurrentAppointments FROM Customers WHERE ID = '".$student_id."'";
+        $result = mysqli_query($conn ,$sql);
+        if(mysqli_num_rows($result) > 0) {
+            while($row = mysqli_fetch_assoc($result)) {
+                $current_appointments = json_decode($row['CurrentAppointments'], true);
+
+                foreach ($current_appointments as $key => $appointment) {
+                    if ($appointment['StartTimestamp'] == $start_timestamp) {
+                        $current_appointments[$key]['Link'] = $new_link;
                         break;
                     }
                 }
@@ -295,7 +416,7 @@
                 $found = true;
                 $details = $appointment;
                 $details['IsPending'] = true;
-                $details['TeacherID'] = "";
+                $details['TeacherID'] = 0;
                 $details['TeacherName'] = "";
                 $details['TeacherPhone'] = "";
                 $details['Link'] = "";

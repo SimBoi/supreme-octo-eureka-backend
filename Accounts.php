@@ -1,40 +1,33 @@
 <?php
     require_once $_SERVER['DOCUMENT_ROOT'] . '/supreme-octo-eureka-backend/utilities.php';
 
-
     /**
-     * Adds a new customer to the database.
+     * Gets the account type of the user based on the phone number.
      *
-     * @param Phone The phone number of the customer
-     * @param Password The password of the customer
-     * @param Username The username of the customer
-     * @param OneSignalID The OneSignal ID of the customer
+     * @param Phone The user's phone number
      *
      * @return JSON Object with the result of the operation
-     * @return Result=SUCCESS in case of success
-     * @return Result=PHONE_EXISTS in case the phone number is already in the database
+     * @return Result=CUSTOMER in case the user is a customer
+     * @return Result=TEACHER in case the user is a teacher
+     * @return Result=PHONE_DOESNT_EXIST in case the phone number is not in the database
      * @return Result=ERROR in case of failure
      */
-    function signup($conn, $phone, $password, $username, $onesignal_id)
+    function get_account_type($conn, $phone)
     {
-        $output = array('Result' => 'None');
-
         // Check if the phone number is 12 characters long, if not, end the script
-        if (strlen($phone) != 12) die('{"Result": "ERROR"}');
+        if (strlen($phone) != 12) die('{"Result": "ERROR: Phone number is not 10 characters long"}');
 
-        // Check if the phone number is already in the database
+        // Check if the phone number is in the Teachers database
+        $sql = "SELECT Phone FROM Teachers WHERE Phone = '".$phone."'";
+        $result = mysqli_query($conn ,$sql);
+        if(mysqli_num_rows($result) > 0) return('{"Result": "TEACHER"}');
+
+        // Check if the phone number is in the Customers database
         $sql = "SELECT Phone FROM Customers WHERE Phone = '".$phone."'";
         $result = mysqli_query($conn ,$sql);
-        if(mysqli_num_rows($result) > 0) die('{"Result": "PHONE_EXISTS"}');
+        if(mysqli_num_rows($result) > 0) return('{"Result": "CUSTOMER"}');
 
-        $hashed_password = password_hash($password, PASSWORD_DEFAULT);
-
-        // Insert the new customer into the database
-        $sql = "INSERT INTO Customers (Password, Phone, Username, OneSignalID, CurrentAppointments) VALUES ('".$hashed_password."', '".$phone."', '".$username."', '".$onesignal_id."', '[]')";
-        if (mysqli_query($conn, $sql)) $output = array('Result' => 'SUCCESS');
-        else $output = array('Result' => 'ERROR');
-
-        return json_encode($output);
+        return '{"Result": "PHONE_DOESNT_EXIST"}';
     }
 
     /**
@@ -45,7 +38,7 @@
      * @param OneSignalID The user's OneSignal ID
      *
      * @return JSON Object with the result of the operation, additional information will be returned based on the result of the operation
-     * @return Result=CUSTOMER,ID,Username,IsVerified in case the user is a customer
+     * @return Result=CUSTOMER,ID,Username in case the user is a customer
      * @return Result=TEACHER,ID,Username,TimeBetweenAppointments in case the user is a teacher
      * @return Result=PHONE_DOESNT_EXIST in case the phone number is not in the database
      * @return Result=WRONG_PASSWORD in case the password is incorrect
@@ -74,7 +67,7 @@
 
         // Prepare the SQL query based on the DatabaseName parameter
         if ($database_name == 'Customers') {
-            $sql = "SELECT Password, ID, Username, IsVerified, CurrentAppointments FROM Customers WHERE Phone = '".$phone."'";
+            $sql = "SELECT Password, ID, Username, CurrentAppointments FROM Customers WHERE Phone = '".$phone."'";
         } else {
             $sql = "SELECT Password, ID, Username, CurrentAppointments FROM Teachers WHERE Phone = '".$phone."'";
         }
@@ -94,7 +87,6 @@
                         'Result' => 'CUSTOMER',
                         'ID' => $row['ID'],
                         'Username' => $row['Username'],
-                        'IsVerified' => $row['IsVerified'],
                         'CurrentAppointments' => $row['CurrentAppointments']
                     );
                 } else {
@@ -117,6 +109,38 @@
             $sql = "UPDATE ".$database_name." SET OneSignalID='".$onesignal_id."' WHERE Phone='".$phone."'";
         }
         if (!mysqli_query($conn ,$sql)) return('{"Result": "ERROR: Could not update OneSignalID"}');
+
+        return json_encode($output);
+    }
+
+    /**
+     * Adds a new customer to the database.
+     *
+     * @param Phone The phone number of the customer
+     * @param Username The username of the customer
+     * @param OneSignalID The OneSignal ID of the customer
+     *
+     * @return JSON Object with the result of the operation
+     * @return Result=SUCCESS in case of success
+     * @return Result=PHONE_EXISTS in case the phone number is already in the database
+     * @return Result=ERROR in case of failure
+     */
+    function signup($conn, $phone, $username, $onesignal_id)
+    {
+        $output = array('Result' => 'None');
+
+        // Check if the phone number is 12 characters long, if not, end the script
+        if (strlen($phone) != 12) die('{"Result": "ERROR"}');
+
+        // Check if the phone number is already in the database
+        $sql = "SELECT Phone FROM Customers WHERE Phone = '".$phone."'";
+        $result = mysqli_query($conn ,$sql);
+        if(mysqli_num_rows($result) > 0) die('{"Result": "PHONE_EXISTS"}');
+
+        // Insert the new customer into the database
+        $sql = "INSERT INTO Customers (Phone, Username, OneSignalID, CurrentAppointments) VALUES ('".$phone."', '".$username."', '".$onesignal_id."', '[]')";
+        if (mysqli_query($conn, $sql)) $output = array('Result' => 'SUCCESS');
+        else $output = array('Result' => 'ERROR');
 
         return json_encode($output);
     }

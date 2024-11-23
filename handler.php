@@ -39,9 +39,13 @@
                     include 'Accounts.php';
                     echo update_profile($conn, $database_name, $_POST["Phone"], $_POST["Password"], $_POST["NewUsername"]);
                     break;
-                case 'OrderLesson':
+                case 'CreateOrderRequest':
                     include 'Booking.php';
-                    echo order_lesson($conn, $_POST["Phone"], $_POST["Password"], $_POST["Title"] , $_POST["StartTimestamp"], $_POST["DurationMinutes"]);
+                    echo create_order_request($conn, $_POST["Phone"], $_POST["Password"], $_POST["Title"] , $_POST["StartTimestamp"], $_POST["DurationMinutes"], $_POST["Language"]);
+                    break;
+                case 'ConfirmOrder':
+                    include 'Booking.php';
+                    echo confirm_order($conn, $_POST["Phone"], $_POST["Password"], $_POST["OrderID"]);
                     break;
                 case 'CancelLesson':
                     include 'Booking.php';

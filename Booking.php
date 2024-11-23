@@ -1,6 +1,191 @@
 <?php
     require_once $_SERVER['DOCUMENT_ROOT'] . '/supreme-octo-eureka-backend/utilities.php';
+    require_once $_SERVER['DOCUMENT_ROOT'] . '/supreme-octo-eureka-backend/Payment.php';
 
+
+    /**
+     * Create a lesson payment request and return the payment link and order ID.
+     *
+     * @param Phone The user's phone number
+     * @param Password The user's password
+     * @param Title The title of the lesson
+     * @param StartTimestamp The start timestamp of the lesson
+     * @param DurationMinutes The duration of the lesson
+     * @param Language The language of the payment page
+     *
+     * @return JSON Object with the result of the operation
+     * @return Result=SUCCESS,PaymentLink,OrderID in case of success
+     * @return Result=PHONE_DOESNT_EXIST in case the phone number is not in the database
+     * @return Result=WRONG_PASSWORD in case the password is incorrect
+     * @return Result=ERROR in case of failure
+     */
+    function create_order_request($conn, $phone, $password, $title, $start_timestamp, $duration_minutes, $language)
+    {
+        global $hourly_rate;
+
+        $output = array('Result' => 'None');
+
+        $start_timestamp = intval($start_timestamp);
+        $duration_minutes = intval($duration_minutes);
+
+        // Check if the phone number is 12 characters long, if not, end the script
+        if (strlen($phone) != 12) die('{"Result": "ERROR: Phone number is not 12 characters long"}');
+        // Check if the duration is greater than 10, if not, end the script
+        if ($duration_minutes < 10) die('{"Result": "ERROR: Duration is less than 10 minutes"}');
+        // Check if the start timestamp is at least 30 minutes in the future, if not, end the script
+        if ($start_timestamp < (time() + 1800)) die('{"Result": "ERROR: Start timestamp is less than 30 minutes in the future"}');
+
+        // Check if the password is correct and get the user's ID, name, Orders list, and CurrentAppointments list
+        $sql = "SELECT ID, Username, Orders, CurrentAppointments, Password FROM Customers WHERE Phone = '" . $phone . "'";
+        $result = mysqli_query($conn, $sql);
+        if (mysqli_num_rows($result) > 0) {
+            while ($row = mysqli_fetch_assoc($result)) {
+                if (!password_verify($password, $row['Password'])) die('{"Result": "WRONG_PASSWORD"}');
+
+                $id = $row['ID'];
+                $name = $row['Username'];
+                $orders = json_decode($row['Orders'], true);
+                $current_appointments = json_decode($row['CurrentAppointments'], true);
+            }
+        } else {
+            die('{"Result": "PHONE_DOESNT_EXIST"}');
+        }
+
+        // Get the auto-incremented order id
+        $sql = "INSERT INTO PaymentRequests () VALUES ()";
+        if (!mysqli_query($conn, $sql)) die('{"Result": "ERROR: ' . mysqli_error($conn) . '"}');
+        $order_id = mysqli_insert_id($conn);
+
+        // generate the order details
+        $order_timestamp = time();
+        $price = $hourly_rate * $duration_minutes / 60;
+        $status = 0; // 0 = pending, 1 = paid, 2 = canceled
+        $end_timestamp = $start_timestamp + ($duration_minutes * 60);
+        $details = array(
+            'OrderID' => $order_id,
+            'StudentID' => intval($id),
+            'StudentName' => $name,
+            'StudentPhone' => $phone,
+            'TeacherID' => 0,
+            'TeacherName' => "",
+            'TeacherPhone' => "",
+            'Title' => $title,
+            'StartTimestamp' => $start_timestamp,
+            'DurationMinutes' => $duration_minutes,
+            'EndTimestamp' => $end_timestamp,
+            'IsPending' => true,
+            'Link' => ""
+        );
+
+        // Check if the user has any overlapping appointments
+        foreach ($current_appointments as $appointment) {
+            if ($start_timestamp >= $appointment['StartTimestamp'] && $start_timestamp < $appointment['EndTimestamp']) die('{"Result": "ERROR: Overlapping lesson"}');
+            if ($end_timestamp > $appointment['StartTimestamp'] && $end_timestamp <= $appointment['EndTimestamp']) die('{"Result": "ERROR: Overlapping lesson"}');
+        }
+
+        // Send a payment request POST request to the payment server api and get the payment link
+        $payment_link = create_payment_request($order_id, $name, $phone, $duration_minutes, $price, $language);
+        if ($payment_link == null) die('{"Result": "ERROR: Payment request failed"}');
+
+        // Add the order to the PaymentRequests table
+        $sql = "UPDATE PaymentRequests SET OrderTimestamp='" . $order_timestamp . "', StudentID='" . $id . "', DurationMinutes='" . $duration_minutes . "', Status='" . $status . "', PaymentLink='" . $payment_link . "', LessonDetails='" . json_encode($details) . "' WHERE OrderID='" . $order_id . "'";
+        if (!mysqli_query($conn, $sql)) die('{"Result": "ERROR: ' . mysqli_error($conn) . '"}');
+
+        // Add the order to the user's Orders list
+        $order = array(
+            'OrderID' => $order_id,
+            'OrderTimestamp' => $order_timestamp,
+            'DurationMinutes' => $duration_minutes,
+            'Status' => $status,
+            'ReceiptURL' => ""
+        );
+        array_push($orders, $order);
+        $sql = "UPDATE Customers SET Orders='" . json_encode($orders) . "' WHERE Phone='" . $phone . "'";
+        if (!mysqli_query($conn, $sql)) die('{"Result": "ERROR: ' . mysqli_error($conn) . '"}');
+
+        // return the payment link and order id
+        $output = array('Result' => 'SUCCESS', 'PaymentLink' => $payment_link, 'OrderID' => $order_id);
+        return json_encode($output);
+    }
+
+    /**
+     * Confirm a payment for a lesson and make the lesson available to teachers.
+     * return the payment receipt URL.
+     *
+     * @param Phone The user's phone number
+     * @param Password The user's password
+     * @param OrderID The order ID
+     *
+     * @return JSON Object with the result of the operation
+     * @return Result=SUCCESS,ReceiptURL in case of success
+     * @return Result=PHONE_DOESNT_EXIST in case the phone number is not in the database
+     * @return Result=WRONG_PASSWORD in case the password is incorrect
+     * @return Result=ERROR in case of failure
+     */
+    function confirm_order($conn, $phone, $password, $order_id)
+    {
+        $output = array('Result' => 'None');
+
+        // Check if the phone number is 12 characters long, if not, end the script
+        if (strlen($phone) != 12) die('{"Result": "ERROR: Phone number is not 12 characters long"}');
+
+        // Check if the password is correct and get the user's Orders list and CurrentAppointments list
+        $sql = "SELECT ID, Username, Orders, CurrentAppointments, Password FROM Customers WHERE Phone = '" . $phone . "'";
+        $result = mysqli_query($conn, $sql);
+        if (mysqli_num_rows($result) > 0) {
+            while ($row = mysqli_fetch_assoc($result)) {
+                if (!password_verify($password, $row['Password'])) die('{"Result": "WRONG_PASSWORD"}');
+
+                $orders = json_decode($row['Orders'], true);
+                $current_appointments = json_decode($row['CurrentAppointments'], true);
+            }
+        } else {
+            die('{"Result": "PHONE_DOESNT_EXIST"}');
+        }
+
+        // Confirm the payment using the order id and the payment server api
+        $payment_status = verify_payment($order_id);
+        if ($payment_status['status'] != 1) die('{"Result": "ERROR: Payment verification failed"}');
+        $receipt_url = $payment_status['receipt_url'];
+
+        // Get the order details from the PaymentRequests table and update the order status
+        $sql = "SELECT LessonDetails FROM PaymentRequests WHERE OrderID = '" . $order_id . "'";
+        $result = mysqli_query($conn, $sql);
+        if (mysqli_num_rows($result) > 0) {
+            while ($row = mysqli_fetch_assoc($result)) {
+                $details = json_decode($row['LessonDetails'], true);
+                $status = 1; // 0 = pending, 1 = paid, 2 = canceled
+
+                $sql = "UPDATE PaymentRequests SET Status='" . $status . "' WHERE OrderID='" . $order_id . "'";
+                if (!mysqli_query($conn, $sql)) die('{"Result": "ERROR: ' . mysqli_error($conn) . '"}');
+            }
+        } else {
+            die('{"Result": "ERROR: ' . mysqli_error($conn) . '"}');
+        }
+
+        // Update the order in the Orders list
+        foreach ($orders as $key => $order) {
+            if ($order['OrderID'] == $order_id) {
+                $orders[$key]['Status'] = $status;
+                $orders[$key]['ReceiptURL'] = $receipt_url;
+                break;
+            }
+        }
+        $sql = "UPDATE Customers SET Orders='" . json_encode($orders) . "' WHERE Phone='" . $phone . "'";
+        if (!mysqli_query($conn, $sql)) die('{"Result": "ERROR: ' . mysqli_error($conn) . '"}');
+
+        // Add a new row to the PendingLessons table (studentID:int, details:json)
+        $sql = "INSERT INTO PendingLessons (StudentID, Details) VALUES ('".$details['StudentID']."', '".json_encode($details)."')";
+        if (!mysqli_query($conn, $sql)) die('{"Result": "ERROR: '.mysqli_error($conn).'"}');
+
+        // Add the new lesson to the user's CurrentAppointments
+        array_push($current_appointments, $details);
+        $sql = "UPDATE Customers SET CurrentAppointments='".json_encode($current_appointments)."' WHERE Phone='".$phone."'";
+        if (!mysqli_query($conn ,$sql)) die('{"Result": "ERROR: '.mysqli_error($conn).'"}');
+
+        $output = array('Result' => 'SUCCESS', 'ReceiptURL' => $receipt_url);
+        return json_encode($output);
+    }
 
     /**
      * Get all the pending lessons from the pending lessons table.
@@ -46,85 +231,6 @@
         } else {
             die('{"Result": "ERROR: '.mysqli_error($conn).'"}');
         }
-    }
-
-    /**
-     * Order a lesson at the given time.
-     *
-     * @param Phone The user's phone number
-     * @param Password The user's password
-     * @param Title The title of the lesson
-     * @param StartTimestamp The start timestamp of the lesson
-     * @param Duration The duration of the lesson
-     *
-     * @return JSON Object with the result of the operation
-     * @return Result=SUCCESS in case of success
-     * @return Result=PHONE_DOESNT_EXIST in case the phone number is not in the database
-     * @return Result=WRONG_PASSWORD in case the password is incorrect
-     * @return Result=ERROR in case of failure
-     */
-    function order_lesson($conn, $phone, $password, $title, $start_timestamp, $duration_minutes)
-    {
-        $output = array('Result' => 'None');
-
-        $start_timestamp = intval($start_timestamp);
-        $duration_minutes = intval($duration_minutes);
-
-        // Check if the phone number is 12 characters long, if not, end the script
-        if (strlen($phone) != 12) die('{"Result": "ERROR: Phone number is not 12 characters long"}');
-        // Check if the duration is greater than 10, if not, end the script
-        if ($duration_minutes < 10) die('{"Result": "ERROR: Duration is less than 10 minutes"}');
-        // Check if the start timestamp is at least 30 minutes in the future, if not, end the script
-        if ($start_timestamp < (time() + 1800)) die('{"Result": "ERROR: Start timestamp is less than 30 minutes in the future"}');
-
-        // Check if the password is correct, and get the user's ID, name and CurrentAppointments
-        $sql = "SELECT ID, Username, Password, CurrentAppointments FROM Customers WHERE Phone = '".$phone."'";
-        $result = mysqli_query($conn ,$sql);
-        if(mysqli_num_rows($result) > 0) {
-            while($row = mysqli_fetch_assoc($result)) {
-                if (!password_verify($password, $row['Password'])) die('{"Result": "WRONG_PASSWORD"}');
-
-                $id = $row['ID'];
-                $name = $row['Username'];
-                $current_appointments = json_decode($row['CurrentAppointments'], true);
-            }
-        } else {
-            die('{"Result": "PHONE_DOESNT_EXIST"}');
-        }
-
-        $end_timestamp = $start_timestamp + ($duration_minutes * 60);
-        $details = array(
-            'StudentID' => intval($id),
-            'StudentName' => $name,
-            'StudentPhone' => $phone,
-            'TeacherID' => 0,
-            'TeacherName' => "",
-            'TeacherPhone' => "",
-            'Title' => $title,
-            'StartTimestamp' => $start_timestamp,
-            'DurationMinutes' => $duration_minutes,
-            'EndTimestamp' => $end_timestamp,
-            'IsPending' => true,
-            'Link' => ""
-        );
-
-        // Check if the user has any overlapping appointments
-        foreach ($current_appointments as $appointment) {
-            if ($start_timestamp >= $appointment['StartTimestamp'] && $start_timestamp < $appointment['EndTimestamp']) die('{"Result": "ERROR: Overlapping lesson"}');
-            if ($end_timestamp > $appointment['StartTimestamp'] && $end_timestamp <= $appointment['EndTimestamp']) die('{"Result": "ERROR: Overlapping lesson"}');
-        }
-
-        // Add a new row to the PendingLessons table (studentID:int, details:json)
-        $sql = "INSERT INTO PendingLessons (StudentID, Details) VALUES ('".$id."', '".json_encode($details)."')";
-        if (!mysqli_query($conn, $sql)) die('{"Result": "ERROR: '.mysqli_error($conn).'"}');
-
-        // Add the new lesson to the user's CurrentAppointments
-        array_push($current_appointments, $details);
-        $sql = "UPDATE Customers SET CurrentAppointments='".json_encode($current_appointments)."' WHERE Phone='".$phone."'";
-        if (!mysqli_query($conn ,$sql)) die('{"Result": "ERROR: '.mysqli_error($conn).'"}');
-
-        $output = array('Result' => 'SUCCESS');
-        return json_encode($output);
     }
 
     /**

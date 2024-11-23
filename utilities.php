@@ -17,6 +17,11 @@
     $password_reset_code_cooldown = 30; // 30 seconds in seconds
     $password_reset_code_expiration = 10 * 60; // 10 minutes in seconds
 
+    // Payment settings
+    $allpay_login = 'YOUR API LOGIN';
+    $allpay_key = 'YOUR API KEY';
+    $hourly_rate = 50; // 50 ILs per hour
+
     /**
      * Creates a connection to the database.
      *

@@ -38,8 +38,8 @@
      * @param OneSignalID The user's OneSignal ID
      *
      * @return JSON Object with the result of the operation, additional information will be returned based on the result of the operation
-     * @return Result=CUSTOMER,ID,Username in case the user is a customer
-     * @return Result=TEACHER,ID,Username,TimeBetweenAppointments in case the user is a teacher
+     * @return Result=CUSTOMER,ID,Username,CurrentAppointments,Orders in case the user is a customer
+     * @return Result=TEACHER,ID,Username,CurrentAppointments in case the user is a teacher
      * @return Result=PHONE_DOESNT_EXIST in case the phone number is not in the database
      * @return Result=WRONG_PASSWORD in case the password is incorrect
      * @return Result=ERROR in case of failure
@@ -67,7 +67,7 @@
 
         // Prepare the SQL query based on the DatabaseName parameter
         if ($database_name == 'Customers') {
-            $sql = "SELECT Password, ID, Username, CurrentAppointments FROM Customers WHERE Phone = '".$phone."'";
+            $sql = "SELECT Password, ID, Username, CurrentAppointments, Orders FROM Customers WHERE Phone = '".$phone."'";
         } else {
             $sql = "SELECT Password, ID, Username, CurrentAppointments FROM Teachers WHERE Phone = '".$phone."'";
         }
@@ -87,14 +87,15 @@
                         'Result' => 'CUSTOMER',
                         'ID' => $row['ID'],
                         'Username' => $row['Username'],
-                        'CurrentAppointments' => $row['CurrentAppointments']
+                        'CurrentAppointments' => $row['CurrentAppointments'],
+                        'Orders' => $row['Orders'],
                     );
                 } else {
                     $output = array(
                         'Result' => 'TEACHER',
                         'ID' => $row['ID'],
                         'Username' => $row['Username'],
-                        'CurrentAppointments' => $row['CurrentAppointments']
+                        'CurrentAppointments' => $row['CurrentAppointments'],
                     );
                 }
             }

@@ -139,7 +139,7 @@
         if(mysqli_num_rows($result) > 0) die('{"Result": "PHONE_EXISTS"}');
 
         // Insert the new customer into the database
-        $sql = "INSERT INTO Customers (Phone, Username, OneSignalID, CurrentAppointments) VALUES ('".$phone."', '".$username."', '".$onesignal_id."', '[]')";
+        $sql = "INSERT INTO Customers (Phone, Username, OneSignalID, CurrentAppointments, Orders) VALUES ('".$phone."', '".$username."', '".$onesignal_id."', '[]', '[]')";
         if (mysqli_query($conn, $sql)) $output = array('Result' => 'SUCCESS');
         else $output = array('Result' => 'ERROR');
 

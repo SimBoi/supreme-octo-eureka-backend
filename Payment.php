@@ -8,7 +8,7 @@
 
     Function verify_payment($order_id)
     {
-        return ['status' => 1, 'receipt' => 'example.com'];
+        return ['status' => 1, 'receipt_url' => 'example.com'];
     }
 
     /**

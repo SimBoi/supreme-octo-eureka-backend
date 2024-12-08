@@ -174,8 +174,8 @@
         $sql = "UPDATE Customers SET Orders='" . json_encode($orders) . "' WHERE Phone='" . $phone . "'";
         if (!mysqli_query($conn, $sql)) die('{"Result": "ERROR: ' . mysqli_error($conn) . '"}');
 
-        // Add a new row to the PendingLessons table (studentID:int, details:json)
-        $sql = "INSERT INTO PendingLessons (StudentID, Details) VALUES ('".$details['StudentID']."', '".json_encode($details)."')";
+        // Add a new row to the ActiveLessons table (OrderID:int, details:json)
+        $sql = "INSERT INTO ActiveLessons (OrderID, Details) VALUES ('".$order_id."', '".json_encode($details)."')";
         if (!mysqli_query($conn, $sql)) die('{"Result": "ERROR: '.mysqli_error($conn).'"}');
 
         // Add the new lesson to the user's CurrentAppointments
@@ -219,8 +219,8 @@
             die('{"Result": "PHONE_DOESNT_EXIST"}');
         }
 
-        // Get all the pending lessons from the PendingLessons table
-        $sql = "SELECT Details FROM PendingLessons";
+        // Get all the pending lessons from the ActiveLessons table
+        $sql = "SELECT Details FROM ActiveLessons WHERE IsPending = 1";
         $result = mysqli_query($conn ,$sql);
         if ($result) {
             $pending_lessons = array();
@@ -238,7 +238,7 @@
      *
      * @param Phone The user's phone number
      * @param Password The user's password
-     * @param StartTimestamp The start timestamp of the lesson
+     * @param OrderID The order ID
      *
      * @return JSON Object with the result of the operation
      * @return Result=SUCCESS in case of success
@@ -246,21 +246,20 @@
      * @return Result=WRONG_PASSWORD in case the password is incorrect
      * @return Result=ERROR in case of failure
      */
-    function cancel_lesson($conn, $phone, $password, $start_timestamp)
+    function cancel_lesson($conn, $phone, $password, $order_id)
     {
         $output = array('Result' => 'None');
 
         // Check if the phone number is 12 characters long, if not, end the script
         if (strlen($phone) != 12) die('{"Result": "ERROR: Phone number is not 12 characters long"}');
 
-        // Check if the password is correct, and get the user's ID and CurrentAppointments
+        // Check if the password is correct, and get the user's CurrentAppointments
         $sql = "SELECT ID, Password, CurrentAppointments FROM Customers WHERE Phone = '".$phone."'";
         $result = mysqli_query($conn ,$sql);
         if(mysqli_num_rows($result) > 0) {
             while($row = mysqli_fetch_assoc($result)) {
                 if (!password_verify($password, $row['Password'])) die('{"Result": "WRONG_PASSWORD"}');
 
-                $id = $row['ID'];
                 $current_appointments = json_decode($row['CurrentAppointments'], true);
             }
         } else {
@@ -270,7 +269,7 @@
         // Find the lesson to cancel in the user's CurrentAppointments
         $found = false;
         foreach ($current_appointments as $key => $appointment) {
-            if ($appointment['StartTimestamp'] == $start_timestamp) {
+            if ($appointment['OrderID'] == $order_id) {
                 $found = true;
                 $details = $appointment;
                 $pending = $details['IsPending'];
@@ -283,11 +282,7 @@
         $sql = "UPDATE Customers SET CurrentAppointments='".json_encode(array_values($current_appointments))."' WHERE Phone='".$phone."'";
         if (!mysqli_query($conn ,$sql)) die('{"Result": "ERROR: '.mysqli_error($conn).'"}');
 
-        if ($pending) {
-            // Remove the lesson from the PendingLessons table
-            $sql = "DELETE FROM PendingLessons WHERE StudentID='".$id."' AND Details LIKE '%\"StartTimestamp\": ".$start_timestamp."%'";
-            if (!mysqli_query($conn ,$sql)) die('{"Result": "ERROR: '.mysqli_error($conn).'"}');
-        } else {
+        if (!$pending) {
             // Remove the lesson from the Teacher's CurrentAppointments
             $teacher_id = $details['TeacherID'];
             $sql = "SELECT CurrentAppointments FROM Teachers WHERE ID = '".$teacher_id."'";
@@ -297,7 +292,7 @@
                     $teacher_current_appointments = json_decode($row['CurrentAppointments'], true);
 
                     foreach ($teacher_current_appointments as $key => $appointment) {
-                        if ($appointment['StartTimestamp'] == $start_timestamp) {
+                        if ($appointment['OrderID'] == $order_id) {
                             unset($teacher_current_appointments[$key]);
                         }
                     }
@@ -310,17 +305,20 @@
             }
         }
 
+        // Remove the lesson from the ActiveLessons table
+        $sql = "DELETE FROM ActiveLessons WHERE OrderID='" . $order_id . "'";
+        if (!mysqli_query($conn, $sql)) die('{"Result": "ERROR: ' . mysqli_error($conn) . '"}');
+
         $output = array('Result' => 'SUCCESS');
         return json_encode($output);
     }
 
     /**
-     * Accept a lesson.
+     * Accept a lesson. The lesson will no longer be available for other teachers to accept.
      *
      * @param Phone The teachers's phone number
      * @param Password The teacher's password
-     * @param StudentID The student's ID
-     * @param StartTimestamp The start timestamp of the lesson
+     * @param OrderID The order ID
      * @param Link The link to the lesson
      *
      * @return JSON Object with the result of the operation
@@ -330,7 +328,7 @@
      * @return Result=WRONG_PASSWORD in case the password is incorrect
      * @return Result=ERROR in case of failure
      */
-    function accept_lesson($conn, $phone, $password, $student_id, $start_timestamp, $link)
+    function accept_lesson($conn, $phone, $password, $order_id, $link)
     {
         $output = array('Result' => 'None');
 
@@ -352,27 +350,27 @@
             die('{"Result": "PHONE_DOESNT_EXIST"}');
         }
 
-        // Find the lesson to accept in the PendingLessons table
-        $sql = "SELECT Details FROM PendingLessons WHERE StudentID = '".$student_id."'";
+        // Find the lesson to accept in the ActiveLessons table
+        $sql = "SELECT Details FROM ActiveLessons WHERE OrderID = '".$order_id."'";
         $result = mysqli_query($conn ,$sql);
         if(mysqli_num_rows($result) > 0) {
             while($row = mysqli_fetch_assoc($result)) {
                 $details = json_decode($row['Details'], true);
-                if ($details['StartTimestamp'] == $start_timestamp) break;
+                $student_id = $details['StudentID'];
             }
         } else {
             die('{"Result": "LESSON_DOESNT_EXIST"}');
         }
-
-        // Remove the lesson from the PendingLessons table
-        $sql = "DELETE FROM PendingLessons WHERE StudentID='".$student_id."' AND Details LIKE '%\"StartTimestamp\": ".$start_timestamp."%'";
-        if (!mysqli_query($conn ,$sql)) die('{"Result": "ERROR: '.mysqli_error($conn).'"}');
 
         $details['IsPending'] = false;
         $details['TeacherID'] = intval($id);
         $details['TeacherName'] = $name;
         $details['TeacherPhone'] = $phone;
         $details['Link'] = $link;
+
+        // Update the lesson in the ActiveLessons table, set IsPending to false and update the details
+        $sql = "UPDATE ActiveLessons SET IsPending=0, Details='".json_encode($details)."' WHERE OrderID='".$order_id."'";
+        if (!mysqli_query($conn ,$sql)) die('{"Result": "ERROR: '.mysqli_error($conn).'"}');
 
         // Add the lesson to the teacher's CurrentAppointments
         array_push($teacher_current_appointments, $details);
@@ -387,7 +385,7 @@
                 $current_appointments = json_decode($row['CurrentAppointments'], true);
 
                 foreach ($current_appointments as $key => $appointment) {
-                    if ($appointment['StartTimestamp'] == $start_timestamp) {
+                    if ($appointment['OrderID'] == $order_id) {
                         $current_appointments[$key] = $details;
                         break;
                     }
@@ -409,8 +407,7 @@
      *
      * @param Phone The teachers's phone number
      * @param Password The teacher's password
-     * @param StudentID The student's ID
-     * @param StartTimestamp The start timestamp of the lesson
+     * @param OrderID The order ID
      * @param NewLink The new link to the lesson
      *
      * @return JSON Object with the result of the operation
@@ -420,7 +417,7 @@
      * @return Result=WRONG_PASSWORD in case the password is incorrect
      * @return Result=ERROR in case of failure
      */
-    function edit_lesson_link($conn, $phone, $password, $student_id, $start_timestamp, $new_link)
+    function edit_lesson_link($conn, $phone, $password, $order_id, $new_link)
     {
         $output = array('Result' => 'None');
 
@@ -440,18 +437,32 @@
             die('{"Result": "PHONE_DOESNT_EXIST"}');
         }
 
-        // Find the lesson to edit in the teacher's CurrentAppointments
-        $found = false;
-        foreach ($teacher_current_appointments as $key => $appointment) {
-            if ($appointment['StudentID'] == $student_id && $appointment['StartTimestamp'] == $start_timestamp) {
-                $found = true;
-                $teacher_current_appointments[$key]['Link'] = $new_link;
+        // Find the lesson to edit in the ActiveLessons
+        $sql = "SELECT Details FROM ActiveLessons WHERE OrderID = '".$order_id."' AND IsPending = 0";
+        $result = mysqli_query($conn ,$sql);
+        if(mysqli_num_rows($result) > 0) {
+            while($row = mysqli_fetch_assoc($result)) {
+                $details = json_decode($row['Details'], true);
             }
+        } else {
+            die('{"Result": "LESSON_DOESNT_EXIST"}');
         }
-        if (!$found) die('{"Result": "LESSON_DOESNT_EXIST"}');
+
+        $details['Link'] = $new_link;
+        $student_id = $details['StudentID'];
+
+        // Update the lesson in the ActiveLessons table
+        $sql = "UPDATE ActiveLessons SET Details='".json_encode($details)."' WHERE OrderID='".$order_id."'";
+        if (!mysqli_query($conn ,$sql)) die('{"Result": "ERROR: '.mysqli_error($conn).'"}');
 
         // Update the lesson in the teacher's CurrentAppointments
-        $sql = "UPDATE Teachers SET CurrentAppointments='".json_encode(array_values($teacher_current_appointments))."' WHERE Phone='".$phone."'";
+        foreach ($teacher_current_appointments as $key => $appointment) {
+            if ($appointment['OrderID'] == $order_id) {
+                $teacher_current_appointments[$key] = $details;
+                break;
+            }
+        }
+        $sql = "UPDATE Teachers SET CurrentAppointments='".json_encode($teacher_current_appointments)."' WHERE Phone='".$phone."'";
         if (!mysqli_query($conn ,$sql)) die('{"Result": "ERROR: '.mysqli_error($conn).'"}');
 
         // Update the lesson in the user's CurrentAppointments
@@ -462,8 +473,8 @@
                 $current_appointments = json_decode($row['CurrentAppointments'], true);
 
                 foreach ($current_appointments as $key => $appointment) {
-                    if ($appointment['StartTimestamp'] == $start_timestamp) {
-                        $current_appointments[$key]['Link'] = $new_link;
+                    if ($appointment['OrderID'] == $order_id) {
+                        $current_appointments[$key] = $details;
                         break;
                     }
                 }
@@ -480,12 +491,11 @@
     }
 
     /**
-     * Reject an accepted lesson. The lesson will be added back to the pending lessons.
+     * Reject an accepted lesson. The lesson will be available for other teachers to accept.
      *
      * @param Phone The teachers's phone number
      * @param Password The teacher's password
-     * @param StudentID The student's ID
-     * @param StartTimestamp The start timestamp of the lesson
+     * @param OrderID The order ID
      *
      * @return JSON Object with the result of the operation
      * @return Result=SUCCESS in case of success
@@ -494,21 +504,20 @@
      * @return Result=WRONG_PASSWORD in case the password is incorrect
      * @return Result=ERROR in case of failure
      */
-    function reject_lesson($conn, $phone, $password, $student_id, $start_timestamp)
+    function reject_lesson($conn, $phone, $password, $order_id)
     {
         $output = array('Result' => 'None');
 
         // Check if the phone number is 12 characters long, if not, end the script
         if (strlen($phone) != 12) die('{"Result": "ERROR: Phone number is not 12 characters long"}');
 
-        // Check if the password is correct, and get the teacher's ID and CurrentAppointments
+        // Check if the password is correct, and get the teacher's CurrentAppointments
         $sql = "SELECT ID, Password, CurrentAppointments FROM Teachers WHERE Phone = '".$phone."'";
         $result = mysqli_query($conn ,$sql);
         if(mysqli_num_rows($result) > 0) {
             while($row = mysqli_fetch_assoc($result)) {
                 if (!password_verify($password, $row['Password'])) die('{"Result": "WRONG_PASSWORD"}');
 
-                $id = $row['ID'];
                 $teacher_current_appointments = json_decode($row['CurrentAppointments'], true);
             }
         } else {
@@ -518,14 +527,17 @@
         // Find the lesson to reject in the teacher's CurrentAppointments
         $found = false;
         foreach ($teacher_current_appointments as $key => $appointment) {
-            if ($appointment['StudentID'] == $student_id && $appointment['StartTimestamp'] == $start_timestamp) {
+            if ($appointment['OrderID'] == $order_id) {
                 $found = true;
                 $details = $appointment;
+                $student_id = $details['StudentID'];
+
                 $details['IsPending'] = true;
                 $details['TeacherID'] = 0;
                 $details['TeacherName'] = "";
                 $details['TeacherPhone'] = "";
                 $details['Link'] = "";
+
                 unset($teacher_current_appointments[$key]);
             }
         }
@@ -543,7 +555,7 @@
                 $current_appointments = json_decode($row['CurrentAppointments'], true);
 
                 foreach ($current_appointments as $key => $appointment) {
-                    if ($appointment['StartTimestamp'] == $start_timestamp) {
+                    if ($appointment['OrderID'] == $order_id) {
                         $current_appointments[$key] = $details;
                         break;
                     }
@@ -556,9 +568,9 @@
             die('{"Result": "ERROR: '.mysqli_error($conn).'"}');
         }
 
-        // Add the lesson back to the PendingLessons table
-        $sql = "INSERT INTO PendingLessons (StudentID, Details) VALUES ('".$student_id."', '".json_encode($details)."')";
-        if (!mysqli_query($conn, $sql)) die('{"Result": "ERROR: '.mysqli_error($conn).'"}');
+        // Update the lesson in the ActiveLessons table
+        $sql = "UPDATE ActiveLessons SET IsPending=1, Details='".json_encode($details)."' WHERE OrderID='".$order_id."'";
+        if (!mysqli_query($conn ,$sql)) die('{"Result": "ERROR: '.mysqli_error($conn).'"}');
 
         $output = array('Result' => 'SUCCESS');
         return json_encode($output);

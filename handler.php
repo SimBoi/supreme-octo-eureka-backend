@@ -49,7 +49,7 @@
                     break;
                 case 'CancelLesson':
                     include 'Booking.php';
-                    echo cancel_lesson($conn, $_POST["Phone"], $_POST["Password"], $_POST["StartTimestamp"]);
+                    echo cancel_lesson($conn, $_POST["Phone"], $_POST["Password"], $_POST["OrderID"]);
                     break;
                 default:
                     die('{"Result": "ERROR: Invalid action"}');
@@ -76,15 +76,15 @@
                     break;
                 case 'AcceptLesson':
                     include 'Booking.php';
-                    echo accept_lesson($conn, $_POST["Phone"], $_POST["Password"], $_POST["StudentID"], $_POST["StartTimestamp"], $_POST["Link"]);
+                    echo accept_lesson($conn, $_POST["Phone"], $_POST["Password"], $_POST["OrderID"], $_POST["Link"]);
                     break;
                 case 'EditLessonLink':
                     include 'Booking.php';
-                    echo edit_lesson_link($conn, $_POST["Phone"], $_POST["Password"], $_POST["StudentID"], $_POST["StartTimestamp"], $_POST["NewLink"]);
+                    echo edit_lesson_link($conn, $_POST["Phone"], $_POST["Password"], $_POST["OrderID"], $_POST["NewLink"]);
                     break;
                 case 'RejectLesson':
                     include 'Booking.php';
-                    echo reject_lesson($conn, $_POST["Phone"], $_POST["Password"], $_POST["StudentID"], $_POST["StartTimestamp"]);
+                    echo reject_lesson($conn, $_POST["Phone"], $_POST["Password"], $_POST["OrderID"]);
                     break;
                 default:
                     die('{"Result": "ERROR: Invalid action"}');

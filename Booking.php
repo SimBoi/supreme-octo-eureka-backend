@@ -174,8 +174,8 @@
         $sql = "UPDATE Customers SET Orders='" . json_encode($orders) . "' WHERE Phone='" . $phone . "'";
         if (!mysqli_query($conn, $sql)) die('{"Result": "ERROR: ' . mysqli_error($conn) . '"}');
 
-        // Add a new row to the ActiveLessons table (OrderID:int, details:json)
-        $sql = "INSERT INTO ActiveLessons (OrderID, Details) VALUES ('".$order_id."', '".json_encode($details)."')";
+        // Add a new row to the ActiveLessons table (OrderID:int, EndTimeStamp:int, details:json)
+        $sql = "INSERT INTO ActiveLessons (OrderID, EndTimeStamp, Details) VALUES ('" . $order_id . "', '" . $details['EndTimestamp'] . "', '" . json_encode($details) . "')";
         if (!mysqli_query($conn, $sql)) die('{"Result": "ERROR: '.mysqli_error($conn).'"}');
 
         // Add the new lesson to the user's CurrentAppointments

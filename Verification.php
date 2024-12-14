@@ -1,5 +1,5 @@
 <?php
-    require_once $_SERVER['DOCUMENT_ROOT'] . '/supreme-octo-eureka-backend/utilities.php';
+    require_once '/var/www/html/supreme-octo-eureka-backend/utilities.php';
 
 
     /**
@@ -175,7 +175,7 @@
             CURLOPT_POSTFIELDS =>$post_fields,
             CURLOPT_HTTPHEADER => array(
                 'Content-Type: application/json',
-            'Authorization: Bearer EAAO4eN0z2rcBOZCzjqpqFTuRtZATCiFHWOvKPwc5OoLsVL6oZCGt9ueaObd7g7PePtm6dU2OhPmqjidMSFsMSRIrvYYn6ZCPVingHbObyYmoedOPUkm1BiQwscDz6JydKf83NgblQGE0vgegjjGwUhhMUxfOzfjrHIGq8XEoDj7yHlgWzytteHACHnZCtqgtKkc9NFfEfr1kcf6S0MfoTCQCBxqG0bDWDMZC0F'
+            'Authorization: Bearer EAAO4eN0z2rcBO5CSsa1LDdEBz6bH2cZCc8we1XemmJFrP1WbZAGhVq366IcSYJ26j6MvHNZBdKBYTeqXkK3pwcS0j9ZAw7c4y0T8IBzQjgJfMKg366g82aqGZB2F2a4h5TrhKynNn2FUixrFZCZCpDqoHWxKIhUDFvKNTLZCRC0IZB0RRTzjZB6gLkvxNWdeoOZAIgVl4ZBNPx7Tc5zQIzNBxf86QlhHghoCGAd4ZBIMZD'
             ),
         ));
 

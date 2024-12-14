@@ -1,7 +1,7 @@
 <?php
     // router for the different actions in the app
 
-    require_once $_SERVER['DOCUMENT_ROOT'] . '/supreme-octo-eureka-backend/utilities.php';
+    require_once '/var/www/html/supreme-octo-eureka-backend/utilities.php';
     $conn = _connect_to_db();
 
     $action = $_POST['Action'];

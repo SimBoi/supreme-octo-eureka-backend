@@ -1,5 +1,5 @@
 <?php
-    require_once $_SERVER['DOCUMENT_ROOT'] . '/supreme-octo-eureka-backend/utilities.php';
+    require_once '/var/www/html/supreme-octo-eureka-backend/utilities.php';
 
     Function create_payment_request($order_id, $name, $phone, $duration_minutes, $price, $language)
     {

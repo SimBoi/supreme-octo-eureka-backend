@@ -11,7 +11,7 @@
         echo get_account_type($conn, $_POST["Phone"]);
     } else if ($action == 'Login') {
         include 'Accounts.php';
-        echo login($conn, $_POST["Phone"], $_POST["Password"], $_POST["OneSignalID"]);
+        echo login($conn, $_POST["Phone"], $_POST["Password"]);
     } else {
         $account_type = $_POST['AccountType'];
 
@@ -29,7 +29,7 @@
                     break;
                 case 'Signup':
                     include 'Accounts.php';
-                    echo signup($conn, $_POST["Phone"], $_POST["Username"], $_POST["OneSignalID"]);
+                    echo signup($conn, $_POST["Phone"], $_POST["Username"]);
                     break;
                 case 'DeleteAccount':
                     include 'Accounts.php';

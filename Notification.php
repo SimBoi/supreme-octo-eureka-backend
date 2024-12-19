@@ -5,20 +5,20 @@
     $rest_api_key = "os_v2_app_47l2fpmblrf5tew5tmpxokzazga76yn4nxvef4e5knnfeapguqhe7b5yvdug72afea6iv4a7ifslgy25c4ktcb2c7bysajaywt3g6oa";
 
     /**
-     * Send a notification using OneSignal Rest API, takes an array of OneSignalIDs to send the notification to
+     * Send a notification using OneSignal Rest API, takes an array of external IDs to send the notification to
      *
-     * @param array $OneSignalIDs The OneSignalIDs to send the notification to
+     * @param array $externalIDs An array of external IDs to send the notification to
      * @param String $content_en The English content of the notification
      * @param String $content_ar The Arabic content of the notification
      * @param String $content_he The Hebrew content of the notification
      *
      * @return String The response from the API
      */
-    function send_notification($OneSignalIDs, $content_en, $content_ar, $content_he) {
+    function send_notification($externalIDs, $content_en, $content_ar, $content_he) {
         global $app_id, $rest_api_key;
 
         // remove any null or empty values from the array
-        $OneSignalIDs = array_filter($OneSignalIDs);
+        $externalIDs = array_filter($externalIDs);
 
         $curl = curl_init();
 
@@ -31,7 +31,7 @@
                 "he" => $content_he
             ),
             "include_aliases" => array(
-                "onesignal_id" => $OneSignalIDs
+                "external_id" => $externalIDs
             )
         );
 

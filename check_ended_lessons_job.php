@@ -1,5 +1,6 @@
 <?php
     require_once '/var/www/html/supreme-octo-eureka-backend/utilities.php';
+    require_once '/var/www/html/supreme-octo-eureka-backend/Notification.php';
 
     $start_time = time();
 
@@ -78,6 +79,64 @@
             }
 
             echo "Ended lesson successfully!\n-----------------------\n";
+        }
+        echo "finished in " . (time() - $start_time) . " seconds\n";
+        echo "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~\n";
+    } else {
+        die("ERROR: " . mysqli_error($conn) . "\n");
+    }
+
+    $start_time = time();
+
+    echo "Checking for lessons about to start...\n";
+    echo "-----------------------\n";
+
+    // get all lessons that are about to start in 20 <= minutes <= 30
+    $sql = "SELECT OrderID, Details FROM ActiveLessons WHERE StartTimeStamp <= " . (time() + 1800) . " AND StartTimeStamp >= " . (time() + 1200);
+    $result_lessons = mysqli_query($conn, $sql);
+    if ($result_lessons) {
+        while ($row = mysqli_fetch_assoc($result_lessons)) {
+            $order_id = $row['OrderID'];
+            $details_json = $row['Details'];
+            $details = json_decode($details_json, true);
+            // if ($details['IsPending']) {
+            //     continue;
+            // }
+            $is_pending = $details['IsPending'];
+            $student_id = $details['StudentID'];
+            $teacher_id = $details['TeacherID'];
+
+            echo "OrderID: " . $order_id . "\n";
+
+            $lesson_date_string = date('d/m H:i', $details['StartTimestamp']);
+            // Send a notification to the student
+            send_notification(
+                array(strval($student_id)),
+                "Your lesson at " . $lesson_date_string . " is starting soon!",
+                "درسك في " . $lesson_date_string . " سيبدأ قريباً!",
+                "השיעור שלך ב-" . $lesson_date_string . " יתחיל בקרוב!"
+            );
+            echo "Notified student " . $student_id . "\n";
+            // Send a notification to the teacher
+            // send_notification(
+            //     array($teacher_id),
+            //     "Your lesson at " . $lesson_date_string . " is starting soon!",
+            //     "درسك في " . $lesson_date_string . " سيبدأ قريباً!",
+            //     "השיעור שלך ב-" . $lesson_date_string . " יתחיל בקרוב!"
+            // );
+            if (!$is_pending) {
+                send_notification(
+                    array($teacher_id),
+                    "Your lesson at " . $lesson_date_string . " is starting soon!",
+                    "درسك في " . $lesson_date_string . " سيبدأ قريباً!",
+                    "השיעור שלך ב-" . $lesson_date_string . " יתחיל בקרוב!"
+                );
+                echo "Notified teacher " . $teacher_id . "\n";
+            }
+
+            // echo "Notified teacher " . $teacher_id . "\n";
+            echo "-----------------------\n";
+
         }
         echo "finished in " . (time() - $start_time) . " seconds\n";
         echo "===============================\n";

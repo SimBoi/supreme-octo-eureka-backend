@@ -31,11 +31,10 @@
     }
 
     /**
-     * Logs the user in and updates the OneSignalID in the database.
+     * Logs the user in.
      *
      * @param Phone The user's phone number
      * @param Password The user's password
-     * @param OneSignalID The user's OneSignal ID
      *
      * @return JSON Object with the result of the operation, additional information will be returned based on the result of the operation
      * @return Result=CUSTOMER,ID,Username,CurrentAppointments,Orders in case the user is a customer
@@ -44,23 +43,23 @@
      * @return Result=WRONG_PASSWORD in case the password is incorrect
      * @return Result=ERROR in case of failure
      */
-    function login($conn, $phone, $password, $onesignal_id)
+    function login($conn, $phone, $password)
     {
         // Check if the phone number is 12 characters long, if not, end the script
         if (strlen($phone) != 12) die('{"Result": "ERROR: Phone number is not 10 characters long"}');
 
         // Check if the phone number is in the Teachers database
-        $output = _login($conn, 'Teachers', $phone, $password, $onesignal_id);
+        $output = _login($conn, 'Teachers', $phone, $password);
         if ($output != '{"Result": "PHONE_DOESNT_EXIST"}') return $output;
 
         // Check if the phone number is in the Customers database
-        $output = _login($conn, 'Customers', $phone, $password, $onesignal_id);
+        $output = _login($conn, 'Customers', $phone, $password);
         if ($output != '{"Result": "PHONE_DOESNT_EXIST"}') return $output;
 
         return '{"Result": "PHONE_DOESNT_EXIST"}';
     }
 
-    function _login($conn, $database_name, $phone, $password, $onesignal_id)
+    function _login($conn, $database_name, $phone, $password)
     {
         $needs_rehash = false;
         $output = array('Result' => 'None');
@@ -103,13 +102,11 @@
             return('{"Result": "PHONE_DOESNT_EXIST"}');
         }
 
-        // Update the OneSignalID in the database, and rehash the password if needed
+        // rehash the password if needed
         if ($needs_rehash) {
-            $sql = "UPDATE ".$database_name." SET Password='".password_hash($password, PASSWORD_DEFAULT)."', OneSignalID='".$onesignal_id."' WHERE Phone='".$phone."'";
-        } else {
-            $sql = "UPDATE ".$database_name." SET OneSignalID='".$onesignal_id."' WHERE Phone='".$phone."'";
+            $sql = "UPDATE ".$database_name." SET Password='".password_hash($password, PASSWORD_DEFAULT)."' WHERE Phone='".$phone."'";
         }
-        if (!mysqli_query($conn ,$sql)) return('{"Result": "ERROR: Could not update OneSignalID"}');
+        if (!mysqli_query($conn ,$sql)) return('{"Result": "ERROR: Failed to rehash password"}');
 
         return json_encode($output);
     }
@@ -119,14 +116,13 @@
      *
      * @param Phone The phone number of the customer
      * @param Username The username of the customer
-     * @param OneSignalID The OneSignal ID of the customer
      *
      * @return JSON Object with the result of the operation
      * @return Result=SUCCESS in case of success
      * @return Result=PHONE_EXISTS in case the phone number is already in the database
      * @return Result=ERROR in case of failure
      */
-    function signup($conn, $phone, $username, $onesignal_id)
+    function signup($conn, $phone, $username)
     {
         $output = array('Result' => 'None');
 
@@ -139,7 +135,7 @@
         if(mysqli_num_rows($result) > 0) die('{"Result": "PHONE_EXISTS"}');
 
         // Insert the new customer into the database
-        $sql = "INSERT INTO Customers (Phone, Username, OneSignalID, CurrentAppointments, Orders) VALUES ('".$phone."', '".$username."', '".$onesignal_id."', '[]', '[]')";
+        $sql = "INSERT INTO Customers (Phone, Username, CurrentAppointments, Orders) VALUES ('".$phone."', '".$username."', '[]', '[]')";
         if (mysqli_query($conn, $sql)) $output = array('Result' => 'SUCCESS');
         else $output = array('Result' => 'ERROR');
 

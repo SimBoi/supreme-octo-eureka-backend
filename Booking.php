@@ -1,7 +1,7 @@
 <?php
     require_once '/var/www/html/supreme-octo-eureka-backend/utilities.php';
     require_once '/var/www/html/supreme-octo-eureka-backend/Payment.php';
-    require_once '/var/www/html/supreme-octo-eureka-backend/Nofitication.php';
+    require_once '/var/www/html/supreme-octo-eureka-backend/Notification.php';
 
 
     /**
@@ -176,7 +176,7 @@
         if (!mysqli_query($conn, $sql)) die('{"Result": "ERROR: ' . mysqli_error($conn) . '"}');
 
         // Add a new row to the ActiveLessons table (OrderID:int, EndTimeStamp:int, details:json)
-        $sql = "INSERT INTO ActiveLessons (OrderID, EndTimeStamp, Details) VALUES ('" . $order_id . "', '" . $details['EndTimestamp'] . "', '" . json_encode($details) . "')";
+        $sql = "INSERT INTO ActiveLessons (OrderID, StartTimeStamp, EndTimeStamp, Details) VALUES ('" . $order_id . "', '" . $details['StartTimestamp'] . "', '" . $details['EndTimestamp'] . "', '" . json_encode($details) . "')";
         if (!mysqli_query($conn, $sql)) die('{"Result": "ERROR: '.mysqli_error($conn).'"}');
 
         // Add the new lesson to the user's CurrentAppointments
@@ -284,17 +284,16 @@
         if (!$pending) {
             // Remove the lesson from the Teacher's CurrentAppointments and send a notification
             $teacher_id = $details['TeacherID'];
-            $sql = "SELECT CurrentAppointments, OneSignalID FROM Teachers WHERE ID = '".$teacher_id."'";
+            $sql = "SELECT CurrentAppointments FROM Teachers WHERE ID = '".$teacher_id."'";
             $result = mysqli_query($conn ,$sql);
             if(mysqli_num_rows($result) > 0) {
                 while($row = mysqli_fetch_assoc($result)) {
                     $teacher_current_appointments = json_decode($row['CurrentAppointments'], true);
-                    $teacher_onesignal_id = $row['OneSignalID'];
 
                     // send notification to the teacher
                     $lesson_date_string = date('d/m H:i', $details['StartTimestamp']);
                     send_notification(
-                        array($teacher_onesignal_id),
+                        array($teacher_id),
                         "The Lesson at " . $lesson_date_string . " has been canceled",
                         "تم إلغاء الدرس في " . $lesson_date_string,
                         "השיעור ב-" . $lesson_date_string . " בוטל"
@@ -387,17 +386,16 @@
         if (!mysqli_query($conn ,$sql)) die('{"Result": "ERROR: '.mysqli_error($conn).'"}');
 
         // Update the lesson in the user's CurrentAppointments and send a notification
-        $sql = "SELECT CurrentAppointments, OneSignalID FROM Customers WHERE ID = '".$student_id."'";
+        $sql = "SELECT CurrentAppointments FROM Customers WHERE ID = '".$student_id."'";
         $result = mysqli_query($conn ,$sql);
         if(mysqli_num_rows($result) > 0) {
             while($row = mysqli_fetch_assoc($result)) {
                 $current_appointments = json_decode($row['CurrentAppointments'], true);
-                $student_onesignal_id = $row['OneSignalID'];
 
                 // send notification to the student
                 $lesson_date_string = date('d/m H:i', $details['StartTimestamp']);
                 send_notification(
-                    array($student_onesignal_id),
+                    array($student_id),
                     "The Lesson at " . $lesson_date_string . " has been accepted by a teacher",
                     "تم قبول الدرس في " . $lesson_date_string . " من قبل مدرس",
                     "השיעור ב-" . $lesson_date_string . " התקבל על ידי מורה"
@@ -486,17 +484,16 @@
         if (!mysqli_query($conn ,$sql)) die('{"Result": "ERROR: '.mysqli_error($conn).'"}');
 
         // Update the lesson in the user's CurrentAppointments and send a notification
-        $sql = "SELECT CurrentAppointments, OneSignalID FROM Customers WHERE ID = '".$student_id."'";
+        $sql = "SELECT CurrentAppointments FROM Customers WHERE ID = '".$student_id."'";
         $result = mysqli_query($conn ,$sql);
         if(mysqli_num_rows($result) > 0) {
             while($row = mysqli_fetch_assoc($result)) {
                 $current_appointments = json_decode($row['CurrentAppointments'], true);
-                $student_onesignal_id = $row['OneSignalID'];
 
                 // send notification to the student
                 $lesson_date_string = date('d/m H:i', $details['StartTimestamp']);
                 send_notification(
-                    array($student_onesignal_id),
+                    array($student_id),
                     "The Lesson at " . $lesson_date_string . " has a new link",
                     "الدرس في " . $lesson_date_string . " لديه رابط جديد",
                     "השיעור ב-" . $lesson_date_string . " יש לו קישור חדש"
@@ -579,17 +576,16 @@
         if (!mysqli_query($conn ,$sql)) die('{"Result": "ERROR: '.mysqli_error($conn).'"}');
 
         // Update the lesson in the user's CurrentAppointments and send a notification
-        $sql = "SELECT CurrentAppointments, OneSignalID FROM Customers WHERE ID = '".$student_id."'";
+        $sql = "SELECT CurrentAppointments FROM Customers WHERE ID = '".$student_id."'";
         $result = mysqli_query($conn ,$sql);
         if(mysqli_num_rows($result) > 0) {
             while($row = mysqli_fetch_assoc($result)) {
                 $current_appointments = json_decode($row['CurrentAppointments'], true);
-                $student_onesignal_id = $row['OneSignalID'];
 
                 // send notification to the student
                 $lesson_date_string = date('d/m H:i', $details['StartTimestamp']);
                 send_notification(
-                    array($student_onesignal_id),
+                    array($student_id),
                     "The teacher assigned to the lesson at " . $lesson_date_string . " has canceled, a new teacher will be assigned soon",
                     "المدرس المعين للدرس في " . $lesson_date_string . " قام بالإلغاء، سيتم تعيين مدرس جديد قريباً",
                     "המורה שהוקצה לשיעור ב-" . $lesson_date_string . " ביטל, מורה חדש יוקצה בקרוב"

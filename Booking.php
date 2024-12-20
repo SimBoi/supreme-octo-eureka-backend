@@ -10,9 +10,10 @@
      * @param Phone The user's phone number
      * @param Password The user's password
      * @param Title The title of the lesson
+     * @param Subject The subject of the lesson
+     * @param Grade The grade of the lesson
      * @param StartTimestamp The start timestamp of the lesson
      * @param DurationMinutes The duration of the lesson
-     * @param Language The language of the payment page
      *
      * @return JSON Object with the result of the operation
      * @return Result=SUCCESS,PaymentLink,OrderID in case of success
@@ -20,7 +21,7 @@
      * @return Result=WRONG_PASSWORD in case the password is incorrect
      * @return Result=ERROR in case of failure
      */
-    function create_order_request($conn, $phone, $password, $title, $start_timestamp, $duration_minutes, $language)
+    function create_order_request($conn, $phone, $password, $title, $subject, $grade, $start_timestamp, $duration_minutes)
     {
         global $hourly_rate;
 
@@ -71,6 +72,8 @@
             'TeacherName' => "",
             'TeacherPhone' => "",
             'Title' => $title,
+            'Subject' => intval($subject),
+            'Grade' => intval($grade),
             'StartTimestamp' => $start_timestamp,
             'DurationMinutes' => $duration_minutes,
             'EndTimestamp' => $end_timestamp,
@@ -85,7 +88,7 @@
         }
 
         // Send a payment request POST request to the payment server api and get the payment link
-        $payment_link = create_payment_request($order_id, $name, $phone, $duration_minutes, $price, $language);
+        $payment_link = create_payment_request($order_id, $name, $phone, $duration_minutes, $price);
         if ($payment_link == null) die('{"Result": "ERROR: Payment request failed"}');
 
         // Add the order to the PaymentRequests table

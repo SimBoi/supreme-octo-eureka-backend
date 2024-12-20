@@ -41,7 +41,7 @@
                     break;
                 case 'CreateOrderRequest':
                     include 'Booking.php';
-                    echo create_order_request($conn, $_POST["Phone"], $_POST["Password"], $_POST["Title"] , $_POST["StartTimestamp"], $_POST["DurationMinutes"], $_POST["Language"]);
+                    echo create_order_request($conn, $_POST["Phone"], $_POST["Password"], $_POST["Title"], $_POST["Subject"], $_POST["Grade"], $_POST["StartTimestamp"], $_POST["DurationMinutes"]);
                     break;
                 case 'ConfirmOrder':
                     include 'Booking.php';

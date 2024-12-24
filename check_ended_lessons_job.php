@@ -1,6 +1,7 @@
 <?php
     require_once '/var/www/html/supreme-octo-eureka-backend/utilities.php';
     require_once '/var/www/html/supreme-octo-eureka-backend/Notification.php';
+    require_once '/var/www/html/supreme-octo-eureka-backend/Meetings.php';
 
     $start_time = time();
 
@@ -108,39 +109,88 @@
 
             echo "OrderID: " . $order_id . "\n";
 
+
+            // create a meeting for the lesson
+            $meeting_url = create_meeting();
+            $details['Link'] = $meeting_url;
+
+            // update the customer's CurrentAppointments
+            $sql = "SELECT CurrentAppointments FROM Customers WHERE ID = '" . $student_id . "'";
+            $result = mysqli_query($conn, $sql);
+            if (mysqli_num_rows($result) > 0) {
+                while ($row = mysqli_fetch_assoc($result)) {
+                    $current_appointments = json_decode($row['CurrentAppointments'], true);
+
+                    foreach ($current_appointments as $key => $appointment) {
+                        if ($appointment['OrderID'] == $order_id) {
+                            $current_appointments[$key] = $details;
+                            break;
+                        }
+                    }
+
+                    $sql = "UPDATE Customers SET CurrentAppointments='" . json_encode($current_appointments) . "' WHERE ID='" . $student_id . "'";
+                    if (!mysqli_query($conn, $sql)) die("ERROR: " . mysqli_error($conn) . "\n");
+                }
+            } else {
+                die("ERROR: " . mysqli_error($conn) . "\n");
+            }
+
+            // update the teacher's CurrentAppointments
+            if (!$is_pending) {
+                $sql = "SELECT CurrentAppointments FROM Teachers WHERE ID = '" . $teacher_id . "'";
+                $result = mysqli_query($conn, $sql);
+                if (mysqli_num_rows($result) > 0) {
+                    while ($row = mysqli_fetch_assoc($result)) {
+                        $current_appointments = json_decode($row['CurrentAppointments'], true);
+
+                        foreach ($current_appointments as $key => $appointment) {
+                            if ($appointment['OrderID'] == $order_id) {
+                                $current_appointments[$key] = $details;
+                                break;
+                            }
+                        }
+
+                        $sql = "UPDATE Teachers SET CurrentAppointments='" . json_encode($current_appointments) . "' WHERE ID='" . $teacher_id . "'";
+                        if (!mysqli_query($conn, $sql)) die("ERROR: " . mysqli_error($conn) . "\n");
+                    }
+                } else {
+                    die("ERROR: " . mysqli_error($conn) . "\n");
+                }
+            }
+
+            // update the ActiveLessons table
+            $sql = "UPDATE ActiveLessons SET Details='" . json_encode($details) . "' WHERE OrderID='" . $order_id . "'";
+            if (!mysqli_query($conn, $sql)) die("ERROR: " . mysqli_error($conn) . "\n");
+
+            echo "Created meeting for lesson...\n";
+
             $lesson_date_string = date('d/m H:i', $details['StartTimestamp']);
+
             // Send a notification to the student
             send_notification(
-                array(strval($student_id)),
-                "Your lesson at " . $lesson_date_string . " is starting soon!",
-                "درسك في " . $lesson_date_string . " سيبدأ قريباً!",
-                "השיעור שלך ב-" . $lesson_date_string . " יתחיל בקרוב!"
+                array($student_id),
+                "Your upcoming lesson at " . $lesson_date_string . " is starting soon! A virtual meeting has been set up for you and can be accessed in your homepage.",
+                "درسك القادم في " . $lesson_date_string . " سيبدأ قريبًا! تم إعداد اجتماع افتراضي لك ويمكن الوصول إليه في صفحتك الرئيسية.",
+                "השיעור הבא שלך ב-" . $lesson_date_string . " עומד להתחיל! פגישה וירטואלית הוקמה עבורך וניתן לגשת אליה בדף הבית שלך."
             );
             echo "Notified student " . $student_id . "\n";
+
             // Send a notification to the teacher
-            // send_notification(
-            //     array($teacher_id),
-            //     "Your lesson at " . $lesson_date_string . " is starting soon!",
-            //     "درسك في " . $lesson_date_string . " سيبدأ قريباً!",
-            //     "השיעור שלך ב-" . $lesson_date_string . " יתחיל בקרוב!"
-            // );
             if (!$is_pending) {
                 send_notification(
                     array($teacher_id),
-                    "Your lesson at " . $lesson_date_string . " is starting soon!",
-                    "درسك في " . $lesson_date_string . " سيبدأ قريباً!",
-                    "השיעור שלך ב-" . $lesson_date_string . " יתחיל בקרוב!"
+                    "Your upcoming lesson at " . $lesson_date_string . " is starting soon! A virtual meeting has been set up for you and can be accessed in your homepage.",
+                    "درسك القادم في " . $lesson_date_string . " سيبدأ قريبًا! تم إعداد اجتماع افتراضي لك ويمكن الوصول إليه في صفحتك الرئيسية.",
+                    "השיעור הבא שלך ב-" . $lesson_date_string . " עומד להתחיל! פגישה וירטואלית הוקמה עבורך וניתן לגשת אליה בדף הבית שלך."
                 );
                 echo "Notified teacher " . $teacher_id . "\n";
             }
 
-            // echo "Notified teacher " . $teacher_id . "\n";
             echo "-----------------------\n";
-
         }
         echo "finished in " . (time() - $start_time) . " seconds\n";
         echo "===============================\n";
     } else {
         die("ERROR: " . mysqli_error($conn) . "\n");
     }
-?>
+    ?>

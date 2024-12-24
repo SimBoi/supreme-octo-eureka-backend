@@ -20,6 +20,9 @@
         // remove any null or empty values from the array
         $externalIDs = array_filter($externalIDs);
 
+        // convert all elements to strings
+        $externalIDs = array_map('strval', $externalIDs);
+
         $curl = curl_init();
 
         $post_fields = array(

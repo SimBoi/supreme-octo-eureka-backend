@@ -330,7 +330,6 @@
      * @param Phone The teachers's phone number
      * @param Password The teacher's password
      * @param OrderID The order ID
-     * @param Link The link to the lesson
      *
      * @return JSON Object with the result of the operation
      * @return Result=SUCCESS in case of success
@@ -339,7 +338,7 @@
      * @return Result=WRONG_PASSWORD in case the password is incorrect
      * @return Result=ERROR in case of failure
      */
-    function accept_lesson($conn, $phone, $password, $order_id, $link)
+    function accept_lesson($conn, $phone, $password, $order_id)
     {
         $output = array('Result' => 'None');
 
@@ -377,7 +376,6 @@
         $details['TeacherID'] = intval($id);
         $details['TeacherName'] = $name;
         $details['TeacherPhone'] = $phone;
-        $details['Link'] = $link;
 
         // Update the lesson in the ActiveLessons table, set IsPending to false and update the details
         $sql = "UPDATE ActiveLessons SET IsPending=0, Details='".json_encode($details)."' WHERE OrderID='".$order_id."'";

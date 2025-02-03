@@ -76,7 +76,7 @@
                     break;
                 case 'AcceptLesson':
                     include 'Booking.php';
-                    echo accept_lesson($conn, $_POST["Phone"], $_POST["Password"], $_POST["OrderID"], $_POST["Link"]);
+                    echo accept_lesson($conn, $_POST["Phone"], $_POST["Password"], $_POST["OrderID"]);
                     break;
                 case 'EditLessonLink':
                     include 'Booking.php';

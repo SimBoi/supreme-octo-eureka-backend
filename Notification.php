@@ -151,4 +151,27 @@ function notify_new_teacher_assigned($externalIDs, $start_timestamp)
  *
  * @return String The response from the API
  */
+function notify_new_scheduled_lesson_request($externalIDs, $start_timestamp)
+{
+    $lesson_date_string = date('d/m H:i', $start_timestamp);
+    $content_en = "A new scheduled lesson request is available for " . $lesson_date_string . ".";
+    $content_ar = "طلب درس مجدول جديد متاح لـ " . $lesson_date_string . ".";
+    $content_he = "בקשת שיעור מתוזמן חדשה זמינה עבור " . $lesson_date_string . ".";
+    return send_notification($externalIDs, $content_en, $content_ar, $content_he);
+}
+
+/**
+ * Notify teachers that a new immediate lesson request is available
+ *
+ * @param array $externalIDs An array of external IDs of the users to notify
+ *
+ * @return String The response from the API
+ */
+function notify_new_immediate_lesson_request($externalIDs)
+{
+    $content_en = "A new immediate lesson request is available.";
+    $content_ar = "طلب درس فوري جديد متاح.";
+    $content_he = "בקשת שיעור מיידית חדשה זמינה.";
+    return send_notification($externalIDs, $content_en, $content_ar, $content_he);
+}
 ?>

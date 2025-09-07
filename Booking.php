@@ -188,7 +188,7 @@ function create_order_request($conn, $phone, $password, $title, $subject, $grade
 
     // generate the order details
     if ($is_immediate) {
-        // set the start timestamp to a 10 years in the future, this will be updated upon a teacher accepting the lesson
+        // set the start timestamp to 10 years in the future, this will be updated upon a teacher accepting the lesson
         $start_timestamp = time() + 315360000;
     }
     $order_timestamp = time();
@@ -220,16 +220,26 @@ function create_order_request($conn, $phone, $password, $title, $subject, $grade
         if ($end_timestamp > $appointment['StartTimestamp'] && $end_timestamp <= $appointment['EndTimestamp']) return '{"Result": "OVERLAPPING_APPOINTMENT"}';
     }
 
-    // Send a payment request POST request to the payment server api and get the payment link
-    $verification_code = rand(pow(10, $verification_code_length - 1), pow(10, $verification_code_length) - 1);
-    $payment_request = create_payment_request($order_id, $verification_code, $name, $phone, '', $duration_minutes, $price);
-    $payment_link = isset($payment_request['Url']) ? $payment_request['Url'] : null;
-    if ($payment_link == null) throw new Exception('Failed to create payment request');
-    $low_profile_id = $payment_request['LowProfileId'];
+    // skip payment for testing phone numbers
+    if ($phone == "972569696969" || $phone == "972566666666") {
+        $payment_link = "https://example.com/";
+        $low_profile_id = "fake_low_profile_id";
 
-    // Add the order to the PaymentRequests table
-    $sql = "UPDATE PaymentRequests SET VerificationCode ='" . password_hash($verification_code, PASSWORD_DEFAULT) . "', LowProfileId='" . $low_profile_id . "', OrderTimestamp='" . $order_timestamp . "', StudentID='" . $id . "', DurationMinutes='" . $duration_minutes . "', Coupon='" . $coupon_code . "', Price='" . $price . "', Status='" . $status . "', PaymentLink='" . $payment_link . "', LessonDetails='" . mysqli_real_escape_string($conn, json_encode($details, JSON_UNESCAPED_UNICODE)) . "' WHERE OrderID='" . $order_id . "'";
-    if (!mysqli_query($conn, $sql)) throw new Exception(mysqli_error($conn));
+        // Add the order to the PaymentRequests table
+        $sql = "UPDATE PaymentRequests SET VerificationCode ='".password_hash("0000", PASSWORD_DEFAULT)."', LowProfileId='".$low_profile_id."', TranzactionId='fake_tranzaction_id', OrderTimestamp='" . $order_timestamp . "', StudentID='" . $id . "', DurationMinutes='" . $duration_minutes . "', Coupon='" . $coupon_code . "', Price='" . $price . "', Status='" . $STATUS_PAID . "', PaymentLink='" . $payment_link . "', LessonDetails='" . mysqli_real_escape_string($conn, json_encode($details, JSON_UNESCAPED_UNICODE)) . "' WHERE OrderID='" . $order_id . "'";
+        if (!mysqli_query($conn, $sql)) throw new Exception(mysqli_error($conn));
+    } else {
+        // Send a payment request POST request to the payment server api and get the payment link
+        $verification_code = rand(pow(10, $verification_code_length - 1), pow(10, $verification_code_length) - 1);
+        $payment_request = create_payment_request($order_id, $verification_code, $name, $phone, '', $duration_minutes, $price);
+        $payment_link = isset($payment_request['Url']) ? $payment_request['Url'] : null;
+        if ($payment_link == null) throw new Exception('Failed to create payment request');
+        $low_profile_id = $payment_request['LowProfileId'];
+
+        // Add the order to the PaymentRequests table
+        $sql = "UPDATE PaymentRequests SET VerificationCode ='" . password_hash($verification_code, PASSWORD_DEFAULT) . "', LowProfileId='" . $low_profile_id . "', OrderTimestamp='" . $order_timestamp . "', StudentID='" . $id . "', DurationMinutes='" . $duration_minutes . "', Coupon='" . $coupon_code . "', Price='" . $price . "', Status='" . $status . "', PaymentLink='" . $payment_link . "', LessonDetails='" . mysqli_real_escape_string($conn, json_encode($details, JSON_UNESCAPED_UNICODE)) . "' WHERE OrderID='" . $order_id . "'";
+        if (!mysqli_query($conn, $sql)) throw new Exception(mysqli_error($conn));
+    }
 
     // Add the order to the user's Orders list
     $order = array(
@@ -244,6 +254,11 @@ function create_order_request($conn, $phone, $password, $title, $subject, $grade
     array_push($orders, $order);
     $sql = "UPDATE Customers SET Orders='" . json_encode($orders) . "' WHERE Phone='" . $phone . "'";
     if (!mysqli_query($conn, $sql)) throw new Exception(mysqli_error($conn));
+
+    // directly confirm the order for testing phone numbers
+    if ($phone == "972569696969" || $phone == "972566666666") {
+        _confirm_order($conn, $phone, $order_id, "0000");
+    }
 
     return json_encode(
         array('Result' => 'SUCCESS', 'PaymentLink' => $payment_link, 'OrderID' => $order_id)
@@ -303,11 +318,17 @@ function _confirm_order($conn, $phone, $order_id, $verification_code)
         return '{"Result": "PHONE_DOESNT_EXIST"}';
     }
 
-    // Confirm the payment using the order id and the payment server api
-    $tranzaction_id = check_payment_request_status($low_profile_id);
-    if ($tranzaction_id == null) {
-        return '{"Result": "UNPAID"}';
+    // Skip payment confirmation for testing phone numbers
+    if ($phone == "972569696969" || $phone == "972566666666") {
+        $tranzaction_id = "fake_tranzaction_id";
+    } else {
+        // Confirm the payment using the order id and the payment server api
+        $tranzaction_id = check_payment_request_status($low_profile_id);
+        if ($tranzaction_id == null) {
+            return '{"Result": "UNPAID"}';
+        }
     }
+
 
     // Get the order details from the PaymentRequests table and update the order status
     $sql = "SELECT LessonDetails FROM PaymentRequests WHERE OrderID = '" . $order_id . "'";
@@ -347,6 +368,35 @@ function _confirm_order($conn, $phone, $order_id, $verification_code)
         array_push($current_appointments, $details);
         $sql = "UPDATE Customers SET CurrentAppointments='".mysqli_real_escape_string($conn, json_encode($current_appointments, JSON_UNESCAPED_UNICODE))."' WHERE Phone='".$phone."'";
         if (!mysqli_query($conn ,$sql)) throw new Exception(mysqli_error($conn));
+
+        // Notify all teachers with access to the subject and grade about the new lesson
+        $teacher_ids = array();
+        $sql = "SELECT ID FROM TeachersAccess WHERE Subject = '".$details['Subject']."' AND MinGrade <= '".$details['Grade']."' AND MaxGrade >= '".$details['Grade']."'";
+        $result = mysqli_query($conn ,$sql);
+        if(mysqli_num_rows($result) > 0) {
+            while($row = mysqli_fetch_assoc($result)) {
+                array_push($teacher_ids, $row['ID']);
+            }
+        }
+        // get the one signal external IDs of the teachers
+        $external_ids = array();
+        if (count($teacher_ids) > 0) {
+            $sql = "SELECT ExternalID FROM Teachers WHERE ID IN ('" . implode("','", $teacher_ids) . "') AND ExternalID IS NOT NULL AND ExternalID != ''";
+            $result = mysqli_query($conn ,$sql);
+            if(mysqli_num_rows($result) > 0) {
+                while($row = mysqli_fetch_assoc($result)) {
+                    array_push($external_ids, $row['ExternalID']);
+                }
+            }
+        }
+        // send the notification
+        if (count($external_ids) > 0) {
+            if ($details['IsImmediate']) {
+                notify_new_immediate_lesson_request($external_ids);
+            } else {
+                notify_new_scheduled_lesson_request($external_ids, $details['StartTimestamp']);
+            }
+        }
     }
 
     return json_encode(
@@ -598,6 +648,7 @@ function cancel_lesson($conn, $phone, $password, $order_id)
  * @return Result=SUCCESS in case of success for non-immediate lessons
  * @return Result=SUCCESS,Details in case of success for immediate lessons
  * @return Result=LESSON_DOESNT_EXIST in case the lesson is not in the database
+ * @return Result=INSUFFICIENT_ACCESS in case the teacher doesn't have access to the lesson's subject/grade
  * @return Result=LESSON_ALREADY_ACCEPTED in case the lesson is already accepted
  * @return Result=PHONE_DOESNT_EXIST in case the phone number is not in the database
  * @return Result=WRONG_PASSWORD in case the password is incorrect
@@ -624,6 +675,25 @@ function accept_lesson($conn, $phone, $password, $order_id)
         return '{"Result": "PHONE_DOESNT_EXIST"}';
     }
 
+    // Get the teacher's access level
+    $access = array();
+    $sql = "SELECT Subject, MinGrade, MaxGrade FROM TeachersAccess WHERE ID = '".$id."'";
+    $result = mysqli_query($conn ,$sql);
+    if(mysqli_num_rows($result) > 0) {
+        while($row = mysqli_fetch_assoc($result)) {
+            array_push(
+                $access,
+                array(
+                    'Subject' => $row['Subject'],
+                    'MinGrade' => $row['MinGrade'],
+                    'MaxGrade' => $row['MaxGrade']
+                )
+            );
+        }
+    } else {
+        throw new Exception('Teacher access not found');
+    }
+
     // Find the lesson to accept in the ActiveLessons table
     $sql = "SELECT Details FROM ActiveLessons WHERE OrderID = '".$order_id."'";
     $result = mysqli_query($conn ,$sql);
@@ -639,6 +709,18 @@ function accept_lesson($conn, $phone, $password, $order_id)
     // Check if the lesson is already accepted
     if ($details['IsPending'] == false) {
         return '{"Result": "LESSON_ALREADY_ACCEPTED"}';
+    }
+
+    // Check if the teacher has access to the lesson's subject and grade
+    $has_access = false;
+    foreach ($access as $a) {
+        if ($a['Subject'] == $details['Subject'] && $details['Grade'] >= $a['MinGrade'] && $details['Grade'] <= $a['MaxGrade']) {
+            $has_access = true;
+            break;
+        }
+    }
+    if (!$has_access) {
+        return '{"Result": "INSUFFICIENT_ACCESS"}';
     }
 
     // update the lesson details with the teacher's information
